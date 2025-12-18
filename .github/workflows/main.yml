@@ -1,0 +1,52 @@
+name: Code build and deploy
+
+on:
+  push:
+
+jobs:
+  CICDjob:
+    runs-on: ubuntu-latest
+    env:
+      imageName: myjavaapp
+
+    steps:
+      - name: Clone the current repository on the runner
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn package
+
+      - name: Set up Docker (Buildx)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.imageName }}:latest
+
+  job1:
+    needs: CICDjob
+    runs-on: self-hosted
+    env:
+      imageName: myjavaapp
+
+    steps:
+      - name: Deploy the image
+        run: |
+          docker run -d -P ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.imageName }}:latest
+          docker ps -a
